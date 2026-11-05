@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prise de rendez-vous médical</title>
+  <style>
+    :root {
+      --fond: #f3f7f6;
+      --carte: #ffffff;
+      --texte: #1d2b2a;
+      --discret: #5b6b69;
+      --principal: #0f766e;
+      --principal-fonce: #0b5a54;
+      --erreur: #b42318;
+      --bordure: #d5e0de;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--fond);
+      color: var(--texte);
+      line-height: 1.5;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 32px 16px 48px;
+      display: grid;
+      gap: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 1.7rem; }
+    h2 { margin: 0 0 16px; font-size: 1.15rem; }
+    .intro { margin: 0; color: var(--discret); }
+    section {
+      background: var(--carte);
+      border: 1px solid var(--bordure);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    form { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+    .champ { display: grid; gap: 6px; }
+    .large { grid-column: 1 / -1; }
+    label { font-weight: 600; font-size: 0.92rem; }
+    input, select, textarea {
+      font: inherit;
+      padding: 10px 12px;
+      border: 1px solid var(--bordure);
+      border-radius: 8px;
+      background: #fff;
+    }
+    input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+      outline: 3px solid #7cc4bd;
+      outline-offset: 1px;
+    }
+    button {
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--principal);
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { background: var(--principal-fonce); }
+    .message { grid-column: 1 / -1; min-height: 1.4em; margin: 0; font-weight: 600; }
+    .message.erreur { color: var(--erreur); }
+    .message.ok { color: var(--principal-fonce); }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--bordure);
+      border-radius: 8px;
+    }
+    .detail { color: var(--discret); font-size: 0.92rem; }
+    .annuler { background: #fff; color: var(--erreur); border: 1px solid var(--erreur); }
+    .annuler:hover { background: #fdecea; }
+    .vide { color: var(--discret); margin: 0; }
+    @media (max-width: 600px) {
+      form { grid-template-columns: 1fr; }
+      li { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Prise de rendez-vous médical</h1>
+      <p class="intro">Choisissez un médecin, une date et une heure. Vos rendez-vous restent enregistrés dans ce navigateur.</p>
+    </header>
+
+    <section>
+      <h2>Nouveau rendez-vous</h2>
+      <form id="rdv-form" novalidate>
+        <div class="champ">
+          <label for="patient">Nom du patient</label>
+          <input id="patient" type="text" autocomplete="name">
+        </div>
+        <div class="champ">
+          <label for="medecin">Médecin</label>
+          <select id="medecin">
+            <option value="">Choisir un médecin</option>
+            <option>Dr Ben Salah, généraliste</option>
+            <option>Dr Trabelsi, pédiatre</option>
+            <option>Dr Gharbi, dentiste</option>
+          </select>
+        </div>
+        <div class="champ">
+          <label for="date">Date</label>
+          <input id="date" type="date">
+        </div>
+        <div class="champ">
+          <label for="heure">Heure</label>
+          <input id="heure" type="time" min="08:00" max="17:00" step="1800">
+        </div>
+        <div class="champ large">
+          <label for="motif">Motif de la consultation</label>
+          <textarea id="motif" rows="2"></textarea>
+        </div>
+        <p id="message" class="message" role="status"></p>
+        <div class="large"><button type="submit">Réserver le rendez-vous</button></div>
+      </form>
+    </section>
+
+    <section>
+      <h2>Mes rendez-vous</h2>
+      <ul id="liste"></ul>
+      <p id="vide" class="vide">Aucun rendez-vous pour le moment. Réservez le premier avec le formulaire.</p>
+    </section>
+  </main>
+
+  <script>
+    const formulaire = document.getElementById("rdv-form");
+    const liste = document.getElementById("liste");
+    const vide = document.getElementById("vide");
+    const message = document.getElementById("message");
+    const champDate = document.getElementById("date");
+
+    let rendezVous = [];
+    try {
+      rendezVous = JSON.parse(localStorage.getItem("rendezVous")) || [];
+    } catch (e) {
+      rendezVous = [];
+    }
+
+    champDate.min = new Date().toISOString().split("T")[0];
+
+    function afficherMessage(texte, type) {
+      message.textContent = texte;
+      message.className = "message " + type;
+    }
+
+    function sauvegarder() {
+      try {
+        localStorage.setItem("rendezVous", JSON.stringify(rendezVous));
+      } catch (e) {}
+    }
+
+    function afficherListe() {
+      liste.innerHTML = "";
+      vide.hidden = rendezVous.length > 0;
+
+      const tries = [...rendezVous].sort((a, b) =>
+        (a.date + a.heure).localeCompare(b.date + b.heure)
+      );
+
+      tries.forEach((rdv) => {
+        const li = document.createElement("li");
+
+        const infos = document.createElement("div");
+        const titre = document.createElement("strong");
+        titre.textContent = rdv.patient + " avec " + rdv.medecin;
+        const detail = document.createElement("div");
+        detail.className = "detail";
+        detail.textContent = rdv.date + " à " + rdv.heure + (rdv.motif ? " : " + rdv.motif : "");
+        infos.append(titre, detail);
+
+        const bouton = document.createElement("button");
+        bouton.type = "button";
+        bouton.className = "annuler";
+        bouton.textContent = "Annuler";
+        bouton.addEventListener("click", () => annuler(rdv.id));
+
+        li.append(infos, bouton);
+        liste.append(li);
+      });
+    }
+
+    function annuler(id) {
+      rendezVous = rendezVous.filter((rdv) => rdv.id !== id);
+      sauvegarder();
+      afficherListe();
+      afficherMessage("Rendez-vous annulé.", "ok");
+    }
+
+    formulaire.addEventListener("submit", (evenement) => {
+      evenement.preventDefault();
+
+      const patient = document.getElementById("patient").value.trim();
+      const medecin = document.getElementById("medecin").value;
+      const date = champDate.value;
+      const heure = document.getElementById("heure").value;
+      const motif = document.getElementById("motif").value.trim();
+
+      if (!patient || !medecin || !date || !heure) {
+        afficherMessage("Remplissez le nom, le médecin, la date et l'heure.", "erreur");
+        return;
+      }
+
+      const dejaPris = rendezVous.some(
+        (rdv) => rdv.medecin === medecin && rdv.date === date && rdv.heure === heure
+      );
+      if (dejaPris) {
+        afficherMessage("Ce créneau est déjà réservé pour ce médecin. Choisissez une autre heure.", "erreur");
+        return;
+      }
+
+      rendezVous.push({ id: Date.now(), patient, medecin, date, heure, motif });
+      sauvegarder();
+      afficherListe();
+      formulaire.reset();
+      afficherMessage("Rendez-vous réservé.", "ok");
+    });
+
+    afficherListe();
+  </script>
+</body>
+</html>
